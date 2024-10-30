@@ -1,0 +1,264 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
+  templates:
+    - uuid: 147bf1cc6e6e42589d16fe886e4a0c79
+      template: 'Tomcat by HTTP'
+      name: 'Tomcat by HTTP'
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 1b0a4b4fbd81433bb1ccc798c0af1a71
+          name: 'JVM Tomcat memory free'
+          type: DEPENDENT
+          key: tomcat.jvm.mem.free
+          delay: '0'
+          history: 1080d
+          trends: 1080d
+          units: M
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.free
+            - type: MULTIPLIER
+              parameters:
+                - '9.5367431640625E-7'
+          master_item:
+            key: 'tomcat_discovery["--host", "{HOST.CONN}", "--port" ,"{$TOMCAT_PORT}", "--user","{$TOMCAT_USER}", "--password","{$TOMCAT_PASS}", "--resource","jvm"]'
+          tags:
+            - tag: Application
+              value: Tomcat
+            - tag: Component
+              value: JVM
+            - tag: JVM
+              value: Memory
+        - uuid: 23ec157f53244a27ba8553330fd2cda3
+          name: 'JVM Tomcat max memory'
+          type: DEPENDENT
+          key: tomcat.jvm.mem.max
+          delay: '0'
+          history: 1080d
+          trends: 1080d
+          units: M
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.max
+            - type: MULTIPLIER
+              parameters:
+                - '9.5367431640625E-7'
+          master_item:
+            key: 'tomcat_discovery["--host", "{HOST.CONN}", "--port" ,"{$TOMCAT_PORT}", "--user","{$TOMCAT_USER}", "--password","{$TOMCAT_PASS}", "--resource","jvm"]'
+          tags:
+            - tag: Application
+              value: Tomcat
+            - tag: Component
+              value: JVM
+            - tag: JVM
+              value: Memory
+        - uuid: 1204d0aaf4c14245bd53fa427ffee10c
+          name: 'Discovery Tomcat Contexts'
+          type: EXTERNAL
+          key: 'tomcat_discovery["--host", "{HOST.CONN}", "--port" ,"{$TOMCAT_PORT}", "--user","{$TOMCAT_USER}", "--password","{$TOMCAT_PASS}", "--resource","contexts"]'
+          delay: 5m
+          value_type: TEXT
+          trends: '0'
+        - uuid: 63697ae8194446048f9484e019506e63
+          name: 'JVM tomcat memory'
+          type: EXTERNAL
+          key: 'tomcat_discovery["--host", "{HOST.CONN}", "--port" ,"{$TOMCAT_PORT}", "--user","{$TOMCAT_USER}", "--password","{$TOMCAT_PASS}", "--resource","jvm"]'
+          delay: 5m
+          value_type: TEXT
+          trends: '0'
+        - uuid: 4198ac555c46475f9f5c1e73b581f145
+          name: 'Discovery Tomcat Memorypools'
+          type: EXTERNAL
+          key: 'tomcat_discovery["--host", "{HOST.CONN}", "--port" ,"{$TOMCAT_PORT}", "--user","{$TOMCAT_USER}", "--password","{$TOMCAT_PASS}", "--resource","memorypools"]'
+          delay: 5m
+          value_type: TEXT
+          trends: '0'
+      discovery_rules:
+        - uuid: b0bc729ca9c541c881c84984b54fce43
+          name: 'Context Discovery'
+          type: DEPENDENT
+          key: tomcat.context.discovery
+          delay: '0'
+          filter:
+            conditions:
+              - macro: '{#CONTEXTNAME}'
+                value: '{$TOMCAT_APPS}'
+                formulaid: A
+          item_prototypes:
+            - uuid: f5aca0bdb8a641eca20e4aac492ffb1c
+              name: 'CONTEXT {#CONTEXTNAME} Active Sessions'
+              type: DEPENDENT
+              key: 'context.activesessions.[{#CONTEXTNAME} ]'
+              delay: '0'
+              history: 1080d
+              trends: 1080d
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.CONTEXTNAME== ''{#CONTEXTNAME}'')].activeSessions.first()'
+              master_item:
+                key: 'tomcat_discovery["--host", "{HOST.CONN}", "--port" ,"{$TOMCAT_PORT}", "--user","{$TOMCAT_USER}", "--password","{$TOMCAT_PASS}", "--resource","contexts"]'
+              tags:
+                - tag: Application
+                  value: Tomcat
+                - tag: Context
+                  value: '{#CONTEXTNAME}'
+              trigger_prototypes:
+                - uuid: df938112dfba4193a8b9ec64c1ed0c82
+                  expression: 'last(/Tomcat by HTTP/context.activesessions.[{#CONTEXTNAME} ])>= {$ACTIVE_SESSIONS_MAX}'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Tomcat by HTTP/context.activesessions.[{#CONTEXTNAME} ])< {$ACTIVE_SESSIONS_MAX}'
+                  name: 'Number of active sessions in {#CONTEXTNAME} is high'
+                  priority: AVERAGE
+                  description: 'The number of active sessions is high.'
+                  tags:
+                    - tag: Application
+                      value: Tomcat
+                    - tag: Context
+                      value: '{#CONTEXTNAME}'
+            - uuid: 6d20dc1f853841e2bc60959123a4b235
+              name: 'CONTEXT {#CONTEXTNAME} START TIME'
+              type: DEPENDENT
+              key: 'context.starttime.[{#CONTEXTNAME} ]'
+              delay: '0'
+              history: 1080d
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.CONTEXTNAME== ''{#CONTEXTNAME}'')].startTime.first()'
+              master_item:
+                key: 'tomcat_discovery["--host", "{HOST.CONN}", "--port" ,"{$TOMCAT_PORT}", "--user","{$TOMCAT_USER}", "--password","{$TOMCAT_PASS}", "--resource","contexts"]'
+              tags:
+                - tag: Application
+                  value: Tomcat
+                - tag: Context
+                  value: '{#CONTEXTNAME}'
+              trigger_prototypes:
+                - uuid: 2eccd8d439cf4495a4ff9f30b63f2241
+                  expression: '(now() - last(/Tomcat by HTTP/context.starttime.[{#CONTEXTNAME} ])) <= 600'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: '(now() - last(/Tomcat by HTTP/context.starttime.[{#CONTEXTNAME} ])) > 600'
+                  name: 'Context {#CONTEXTNAME} is restarted'
+                  priority: HIGH
+                  description: 'Context start time less than 10 minutes.'
+                  tags:
+                    - tag: Application
+                      value: Tomcat
+                    - tag: Context
+                      value: '{#CONTEXTNAME}'
+          master_item:
+            key: 'tomcat_discovery["--host", "{HOST.CONN}", "--port" ,"{$TOMCAT_PORT}", "--user","{$TOMCAT_USER}", "--password","{$TOMCAT_PASS}", "--resource","contexts"]'
+          lld_macro_paths:
+            - lld_macro: '{#CONTEXTNAME}'
+              path: $.CONTEXTNAME
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.[:]'
+        - uuid: dd73f0f41eab47f994434d0cd37e113d
+          name: 'Discovery JVM Memory Pool'
+          type: DEPENDENT
+          key: tomcat.memorypools.discovery
+          delay: '0'
+          item_prototypes:
+            - uuid: 6fdb798a13fa46929a94a1f8611819e7
+              name: 'MAX OF MEMORY USAGE IN POOL {#POOLNAME}'
+              type: DEPENDENT
+              key: 'memorypool.mem.[{#POOLNAME}, maxUsage]'
+              delay: '0'
+              history: 1080d
+              value_type: FLOAT
+              trends: 1080d
+              units: M
+              preprocessing:
+                - type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - '-1'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.POOLNAME== ''{#POOLNAME}'')].usageMax.first()'
+              master_item:
+                key: 'tomcat_discovery["--host", "{HOST.CONN}", "--port" ,"{$TOMCAT_PORT}", "--user","{$TOMCAT_USER}", "--password","{$TOMCAT_PASS}", "--resource","memorypools"]'
+              tags:
+                - tag: Application
+                  value: Tomcat
+                - tag: Component
+                  value: Memorypool
+                - tag: Memorypool
+                  value: '{#POOLNAME}'
+            - uuid: 417b8cba4e404f1ba0deb9214f895ebf
+              name: 'MEMORY USAGE OF POOL {#POOLNAME}'
+              type: DEPENDENT
+              key: 'memorypool.mem.[{#POOLNAME}, usage]'
+              delay: '0'
+              history: 1080d
+              trends: 1080d
+              units: Mb
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.POOLNAME== ''{#POOLNAME}'')].usageUsed.first()'
+                - type: STR_REPLACE
+                  parameters:
+                    - '""'
+                    - '0'
+              master_item:
+                key: 'tomcat_discovery["--host", "{HOST.CONN}", "--port" ,"{$TOMCAT_PORT}", "--user","{$TOMCAT_USER}", "--password","{$TOMCAT_PASS}", "--resource","memorypools"]'
+              tags:
+                - tag: Application
+                  value: Tomcat
+                - tag: Component
+                  value: Memorypool
+                - tag: Memorypool
+                  value: '{#POOLNAME}'
+          trigger_prototypes:
+            - uuid: b9df6a3b63734260a13e5668ce185d9c
+              expression: '((last(/Tomcat by HTTP/memorypool.mem.[{#POOLNAME}, usage],#3)/last(/Tomcat by HTTP/memorypool.mem.[{#POOLNAME}, maxUsage],#3))*100) >= 80'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: '((last(/Tomcat by HTTP/memorypool.mem.[{#POOLNAME}, usage],#3)/last(/Tomcat by HTTP/memorypool.mem.[{#POOLNAME}, maxUsage],#3))*100) < 80'
+              name: 'MEMORY USAGE OF POOL {#POOLNAME} IS HIGH'
+              priority: WARNING
+              description: 'Pool memory usage is higher than 80%'
+              tags:
+                - tag: Application
+                  value: Tomcat
+                - tag: Component
+                  value: Memorypool
+                - tag: Memorypool
+                  value: '{#POOLNAME}'
+          master_item:
+            key: 'tomcat_discovery["--host", "{HOST.CONN}", "--port" ,"{$TOMCAT_PORT}", "--user","{$TOMCAT_USER}", "--password","{$TOMCAT_PASS}", "--resource","memorypools"]'
+          lld_macro_paths:
+            - lld_macro: '{#POOLNAME}'
+              path: $.POOLNAME
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.[:]'
+      tags:
+        - tag: Application
+          value: Tomcat
+      macros:
+        - macro: '{$ACTIVE_SESSIONS_MAX}'
+          value: '250'
+        - macro: '{$TOMCAT_PASS}'
+          value: tomcat
+        - macro: '{$TOMCAT_PORT}'
+          value: '8080'
+        - macro: '{$TOMCAT_USER}'
+          value: tomcat
+  triggers:
+    - uuid: 2ceb1738bb954e879310072ba70222f4
+      expression: '((last(/Tomcat by HTTP/tomcat.jvm.mem.free,#3)/last(/Tomcat by HTTP/tomcat.jvm.mem.max,#3))*100) <= 20'
+      name: 'JVM memory usage is high'
+      priority: WARNING
+      description: 'Memory usage of JVM is higher of 80%'
