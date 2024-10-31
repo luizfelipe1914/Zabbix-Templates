@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+
+import argparse
+import requests
+import json
+from datetime import datetime
+from email.utils import parsedate_to_datetime
+
+def get_parameters():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--host", required=True, nargs="?")
+    parser.add_argument("--resource", required=True, nargs="?")
+    parser.add_argument("--port", required=True, nargs="?")
+    parser.add_argument("--user", required=True, nargs="?")
+    parser.add_argument("--password", required=True, nargs="?")
+    return parser.parse_args()
+
+def convert_from_rfc822_to_zbx_date_format(date_rfc822):
+    date_obj = parsedate_to_datetime(date_rfc822)
+    return datetime.timestamp(date_obj)
+
+def get_jvm_metrics(data):
+    jvm = data['tomcat']['jvm']['memory']
+    return jvm
+
+def get_memorypools(data):
+    mem_pools = []
+    for mem_pool in data['tomcat']['jvm']['memorypool']:
+        mem_pools.append({"POOLNAME": mem_pool['name'].replace("'",""),
+                                  "POOLTYPE": mem_pool['type'],
+                                  "usageInit": mem_pool['usageInit'],
+                                  "usageCommitted": mem_pool['usageCommitted'],
+                                  "usageMax":mem_pool["usageMax"], "usageUsed": mem_pool["usageUsed"]
+                                })
+    return mem_pools
+
+def get_contexts(data):
+    contexts = []
+    for context in data['tomcat']['context']:
+        contexts.append(
+            {
+                "CONTEXTNAME": context['name'],
+                "startTime":  convert_from_rfc822_to_zbx_date_format(date_rfc822= context['startTime']),
+                "activeSessions": context['manager']['activeSessions']
+            }
+        )
+    return contexts
+
+def get_resources(url,user, password, resource):
+    try:
+        response = requests.get(url = url, auth=(user, password))
+    except Exception as err:
+        print(err)
+    if(response.status_code == 200):
+        data = response.json()
+
+    if(resource == "memorypools"):
+        print(json.dumps(get_memorypools(data = data)))
+    elif(resource == "contexts"):
+         print(json.dumps(get_contexts(data = data)))
+    elif(resource == "jvm"):
+        print(json.dumps(get_jvm_metrics(data = data)))
+    else:
+        print("ERRO")
+def main():
+    opts = get_parameters()
+    dados = {
+        "url": f"http://{opts.host}:{opts.port}/manager/status/all?JSON=true",
+        "resource":opts.resource,
+        "user":opts.user,
+        "password":opts.password
+    }
+    get_resources(url = dados["url"], user=dados["user"], password=dados["password"], resource=dados["resource"])
+
+
+if __name__ == "__main__":
+    main()
+
+
